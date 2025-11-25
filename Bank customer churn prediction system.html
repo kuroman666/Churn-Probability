@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>銀行客戶流失預測系統 | AI Churn Prediction</title>
+    <!-- 引入字體與圖示 -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- 引入 Chart.js 用於圖表繪製 -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        :root {
+            --primary: #38bdf8;       /* 亮藍色 */
+            --secondary: #fbbf24;     /* 琥珀黃 */
+            --bg-dark: #0f172a;       /* 深藍底色 */
+            --bg-card: #1e293b;       /* 卡片底色 */
+            --text-main: #f1f5f9;     /* 主要文字 */
+            --text-sub: #94a3b8;      /* 次要文字 */
+            --border: #334155;
+            --success: #10b981;
+            --danger: #ef4444;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Outfit', 'Noto Sans TC', sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            display: flex;
+            min-height: 100vh;
+        }
+
+        /* 側邊欄 Sidebar */
+        .sidebar {
+            width: 260px;
+            background-color: #020617;
+            border-right: 1px solid var(--border);
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            position: fixed;
+            height: 100vh;
+        }
+
+        .brand {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .menu-item {
+            padding: 12px 16px;
+            border-radius: 8px;
+            color: var(--text-sub);
+            text-decoration: none;
+            transition: 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 16px;
+        }
+
+        .menu-item.active, .menu-item:hover {
+            background-color: rgba(56, 189, 248, 0.1);
+            color: var(--primary);
+        }
+
+        /* 主內容區 Main Content */
+        .main-content {
+            margin-left: 260px;
+            padding: 40px;
+            width: 100%;
+            display: grid;
+            grid-template-columns: 350px 1fr; /* 左側表單，右側結果 */
+            gap: 40px;
+        }
+
+        header {
+            grid-column: 1 / -1;
+            margin-bottom: 10px;
+        }
+
+        h1 {
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: var(--text-sub);
+        }
+
+        /* 卡片樣式 */
+        .card {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+
+        .card-header {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        /* 表單樣式 */
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: var(--text-sub);
+            font-size: 14px;
+        }
+
+        input, select {
+            width: 100%;
+            padding: 12px;
+            background-color: #0f172a;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: white;
+            font-family: inherit;
+            outline: none;
+            transition: 0.3s;
+        }
+
+        input:focus, select:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2);
+        }
+
+        .btn-predict {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(90deg, var(--primary), #2563eb);
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 16px;
+            margin-top: 10px;
+            transition: 0.3s;
+        }
+
+        .btn-predict:hover {
+            opacity: 0.9;
+            transform: translateY(-2px);
+        }
+
+        /* 結果顯示區 */
+        .result-container {
+            display: flex;
+            flex-direction: column;
+            gap: 30px;
+            opacity: 0.5; /* 初始狀態半透明 */
+            pointer-events: none; /* 初始狀態不可互動 */
+            transition: 0.5s;
+        }
+
+        .result-container.active {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        .score-card {
+            text-align: center;
+            padding: 40px;
+        }
+
+        .probability-value {
+            font-size: 64px;
+            font-weight: 700;
+            margin: 20px 0;
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .risk-badge {
+            display: inline-block;
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .risk-high { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
+        .risk-low { background: rgba(16, 185, 129, 0.2); color: var(--success); }
+
+        /* 關鍵因子列表 (XAI) */
+        .factors-list {
+            list-style: none;
+        }
+
+        .factor-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .factor-item:last-child { border-bottom: none; }
+
+        .factor-name { font-weight: 500; }
+        .factor-impact { font-size: 14px; color: var(--secondary); }
+        
+        /* 響應式調整 */
+        @media (max-width: 1024px) {
+            .main-content { grid-template-columns: 1fr; margin-left: 0; }
+            .sidebar { display: none; } /* 簡單隱藏側邊欄以適應手機 */
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 左側導覽列 -->
+    <nav class="sidebar">
+        <div class="brand">
+            <i class="fa-solid fa-layer-group"></i>
+            Bank AI
+        </div>
+        <a href="#" class="menu-item active"><i class="fa-solid fa-chart-pie"></i> 預測儀表板</a>
+        <a href="#" class="menu-item"><i class="fa-solid fa-users"></i> 客戶管理</a>
+        <a href="#" class="menu-item"><i class="fa-solid fa-microchip"></i> 模型監控</a>
+        <a href="#" class="menu-item"><i class="fa-solid fa-gear"></i> 系統設定</a>
+    </nav>
+
+    <!-- 主內容區 -->
+    <main class="main-content">
+        <header>
+            <h1>客戶流失預測系統</h1>
+            <p class="subtitle">輸入客戶特徵參數，AI 模型將即時計算流失機率 (Churn Probability)。</p>
+        </header>
+
+        <!-- 左欄：輸入表單 -->
+        <section class="input-section">
+            <div class="card">
+                <div class="card-header">
+                    <i class="fa-solid fa-pen-to-square"></i> 客戶特徵參數 (Features)
+                </div>
+                <form id="predictionForm">
+                    <div class="form-group">
+                        <label>信用分數 (Credit Score)</label>
+                        <input type="number" id="creditScore" placeholder="例如: 650" value="619" min="300" max="850">
+                    </div>
+
+                    <div class="form-group" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                        <div>
+                            <label>地理位置 (Geography)</label>
+                            <select id="geography">
+                                <option value="France">France</option>
+                                <option value="Germany">Germany</option>
+                                <option value="Spain">Spain</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label>性別 (Gender)</label>
+                            <select id="gender">
+                                <option value="Female">Female</option>
+                                <option value="Male">Male</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-group" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                        <div>
+                            <label>年齡 (Age)</label>
+                            <input type="number" id="age" value="42">
+                        </div>
+                        <div>
+                            <label>往來年資 (Tenure)</label>
+                            <input type="number" id="tenure" value="2">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>帳戶餘額 (Balance)</label>
+                        <input type="number" id="balance" value="0">
+                    </div>
+
+                    <div class="form-group" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                        <div>
+                            <label>產品數量</label>
+                            <select id="numOfProducts">
+                                <option value="1">1</option>
+                                <option value="2">2</option>
+                                <option value="3">3</option>
+                                <option value="4">4</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label>預估薪資</label>
+                            <input type="number" id="salary" value="101348">
+                        </div>
+                    </div>
+
+                    <div class="form-group" style="display: flex; gap: 20px;">
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                            <input type="checkbox" id="hasCrCard" checked style="width: auto;"> 持有信用卡
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                            <input type="checkbox" id="isActiveMember" checked style="width: auto;"> 活躍會員
+                        </label>
+                    </div>
+
+                    <button type="button" class="btn-predict" onclick="predictChurn()">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i> 執行 AI 預測
+                    </button>
+                </form>
+            </div>
+        </section>
+
+        <!-- 右欄：預測結果 -->
+        <section class="result-container" id="resultSection">
+            <!-- 結果卡片 -->
+            <div class="card score-card">
+                <div class="card-header" style="justify-content: center; border: none;">
+                    預測結果 (Prediction)
+                </div>
+                <div id="riskBadge" class="risk-badge risk-low">等待分析...</div>
+                
+                <div class="probability-value" id="probValue">--%</div>
+                <p style="color: var(--text-sub);">客戶流失機率</p>
+
+                <!-- Chart.js Canvas -->
+                <div style="height: 200px; margin-top: 20px;">
+                    <canvas id="churnChart"></canvas>
+                </div>
+            </div>
+
+            <!-- 可解釋性卡片 -->
+            <div class="card">
+                <div class="card-header">
+                    <i class="fa-solid fa-magnifying-glass-chart"></i> 關鍵影響因子 (Explainable AI)
+                </div>
+                <p style="font-size: 14px; color: var(--text-sub); margin-bottom: 15px;">
+                    以下特徵對本次預測結果影響最大 (基於 SHAP 值模擬)：
+                </p>
+                <ul class="factors-list" id="factorsList">
+                    <!-- Javascript 將動態填入內容 -->
+                </ul>
+                
+                <div style="margin-top: 20px; padding: 15px; background: rgba(251, 191, 36, 0.1); border-radius: 8px; border-left: 3px solid var(--secondary);">
+                    <h4 style="color: var(--secondary); margin-bottom: 5px; font-size: 14px;">💡 建議挽留策略</h4>
+                    <p style="font-size: 14px; color: #cbd5e1;" id="suggestionText">
+                        系統建議...
+                    </p>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        // 初始化 Chart.js 圖表實例
+        let churnChartInstance = null;
+
+        function predictChurn() {
+            // 1. 獲取表單數據 (這裡模擬將數據打包成 JSON)
+            const formData = {
+                creditScore: parseInt(document.getElementById('creditScore').value),
+                geography: document.getElementById('geography').value,
+                gender: document.getElementById('gender').value,
+                age: parseInt(document.getElementById('age').value),
+                balance: parseFloat(document.getElementById('balance').value),
+                active: document.getElementById('isActiveMember').checked
+            };
+
+            // 2. 模擬後端 AI 模型邏輯 (Mock Logic)
+            // 這裡寫一個簡單的規則來產生「假」的預測結果，讓介面有反應
+            let mockProbability = 0.2; // 基礎機率 20%
+
+            // 簡單規則：年紀大、餘額高、德國人、不活躍 -> 流失率高
+            if (formData.geography === 'Germany') mockProbability += 0.15;
+            if (formData.age > 50) mockProbability += 0.2;
+            else if (formData.age > 40) mockProbability += 0.1;
+            if (!formData.active) mockProbability += 0.15;
+            if (formData.balance > 100000) mockProbability += 0.1;
+            
+            // 確保機率在 0~1 之間 (稍微隨機化一點)
+            mockProbability += (Math.random() * 0.1 - 0.05); 
+            mockProbability = Math.min(Math.max(mockProbability, 0.05), 0.98);
+
+            // 3. 更新 UI
+            updateUI(mockProbability, formData);
+        }
+
+        function updateUI(probability, data) {
+            const resultSection = document.getElementById('resultSection');
+            const probValue = document.getElementById('probValue');
+            const riskBadge = document.getElementById('riskBadge');
+            const factorsList = document.getElementById('factorsList');
+            const suggestionText = document.getElementById('suggestionText');
+
+            // 顯示結果區塊
+            resultSection.classList.add('active');
+
+            // 格式化數值
+            const percentage = (probability * 100).toFixed(1);
+            probValue.innerText = `${percentage}%`;
+
+            // 設定風險等級樣式
+            if (probability > 0.5) {
+                riskBadge.className = 'risk-badge risk-high';
+                riskBadge.innerText = '高風險 High Risk';
+                probValue.style.background = 'linear-gradient(90deg, #f87171, #ef4444)';
+                probValue.style.webkitBackgroundClip = 'text';
+                
+                suggestionText.innerText = "客戶流失風險極高！建議立即指派專員聯繫，並提供「高資產客戶專屬優惠」或「手續費減免」方案以提升黏著度。";
+            } else {
+                riskBadge.className = 'risk-badge risk-low';
+                riskBadge.innerText = '低風險 Low Risk';
+                probValue.style.background = 'linear-gradient(90deg, #34d399, #10b981)';
+                probValue.style.webkitBackgroundClip = 'text';
+
+                suggestionText.innerText = "客戶狀態穩定。建議維持定期電子報互動，並推薦適合的理財產品以加深關係。";
+            }
+
+            // 更新圖表 (使用 Chart.js)
+            updateChart(probability);
+
+            // 模擬 XAI 關鍵因子 (根據輸入特徵動態生成)
+            let factorsHtml = '';
+            if (data.geography === 'Germany') {
+                factorsHtml += `<li class="factor-item"><span class="factor-name">地理位置 (Germany)</span> <span class="factor-impact text-danger"><i class="fa-solid fa-arrow-trend-up"></i> 增加風險</span></li>`;
+            }
+            if (data.age > 45) {
+                factorsHtml += `<li class="factor-item"><span class="factor-name">年齡 (${data.age})</span> <span class="factor-impact text-danger"><i class="fa-solid fa-arrow-trend-up"></i> 增加風險</span></li>`;
+            }
+            if (!data.active) {
+                factorsHtml += `<li class="factor-item"><span class="factor-name">活躍狀態 (Inactive)</span> <span class="factor-impact text-danger"><i class="fa-solid fa-arrow-trend-up"></i> 增加風險</span></li>`;
+            }
+            if (data.active) {
+                factorsHtml += `<li class="factor-item"><span class="factor-name">活躍狀態 (Active)</span> <span class="factor-impact" style="color:var(--success)"><i class="fa-solid fa-arrow-trend-down"></i> 降低風險</span></li>`;
+            }
+            
+            // 補一個通用的
+            factorsHtml += `<li class="factor-item"><span class="factor-name">持有產品數</span> <span class="factor-impact" style="color:#94a3b8">影響輕微</span></li>`;
+
+            factorsList.innerHTML = factorsHtml;
+        }
+
+        function updateChart(probability) {
+            const ctx = document.getElementById('churnChart').getContext('2d');
+            const remain = 1 - probability;
+
+            if (churnChartInstance) {
+                churnChartInstance.destroy();
+            }
+
+            churnChartInstance = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['流失機率', '留存機率'],
+                    datasets: [{
+                        data: [probability, remain],
+                        backgroundColor: [
+                            probability > 0.5 ? '#ef4444' : '#10b981', // 紅色或綠色
+                            '#334155' // 深灰底色
+                        ],
+                        borderWidth: 0,
+                        hoverOffset: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '75%', // 讓甜甜圈變細
+                    plugins: {
+                        legend: { display: false }
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+</html>
+
